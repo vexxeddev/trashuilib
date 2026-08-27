@@ -1,24 +1,3 @@
--- ui.lua - vape-style Drawing UI library for Matcha
--- Look matches the confirmed-good single-box design:
---   box fill (28,28,28) / section labels (219,219,219) / white divider
---   widget rows (156,156,156), clickable + press highlight, draggable,
---   RightShift toggle.
---
--- CRITICAL quirk (learned the hard way on this build):
---   * Never write Visible=false on a Drawing object - it can permanently
---     kill it (it stops rendering forever). To hide, objects are parked
---     off-screen instead. Visible=true is written exactly once per object.
---   * Never set Transparency on filled squares.
---   * Avoid pure red.
---
--- Usage:
---   local Win = UI.Window.new({})
---   local Main = Win:Section("Main")
---   Main:Button("test", function() print("[ui] clicked") end)
---   Main:Toggle("AutoClicker", true, function(v) print("ac =", v) end)
---   Main:Keybind("Mode", function(vk) print("bound", vk) end)
---   Win:Start()
-
 local VK_RSHIFT = 0xA1
 local DRAG_THRESHOLD = 3
 local RUN_KEY = "__UI_MENU"
@@ -34,7 +13,7 @@ local ON_CL     = Color3.new(0, 1, 0)
 local FONT_BOLD = Drawing.Fonts.SystemBold
 
 local BOX_W = 212
-local SEC_H = 38  -- section label zone (divider sits at its bottom)
+local SEC_H = 38
 local ROW_H = 30
 local ROW_GAP = 4
 local SEC_GAP = 8
@@ -56,12 +35,12 @@ local function safe(fn, ...)
     return nil, nil
 end
 
--- keys that a keybind can capture
+
 local BIND_KEYS = {}
-for i = 0x30, 0x39 do table.insert(BIND_KEYS, i) end              -- 0-9
-for i = 0x41, 0x5A do table.insert(BIND_KEYS, i) end              -- A-Z
-for i = 0x70, 0x7B do table.insert(BIND_KEYS, i) end              -- F1-F12
-BIND_KEYS[#BIND_KEYS + 1] = 0x20 -- space
+for i = 0x30, 0x39 do table.insert(BIND_KEYS, i) end 
+for i = 0x41, 0x5A do table.insert(BIND_KEYS, i) end 
+for i = 0x70, 0x7B do table.insert(BIND_KEYS, i) end 
+BIND_KEYS[#BIND_KEYS + 1] = 0x20
 
 local KEY_NAME = {}
 for k = 0x41, 0x5A do KEY_NAME[k] = string.char(k) end
@@ -73,9 +52,6 @@ local UI = {}
 UI.Window = {}
 UI.Window.__index = UI.Window
 
--- note: this build renders Text only while Visible=true is written (proven:
--- probe text + earlier menu both re-wrote it every frame). So always write
--- Visible=true, never false; hiding is done by parking off-screen.
 local function wShow(w, o)
     if not o then return end
     pcall(function() o.Visible = true end)
@@ -100,7 +76,7 @@ function UI.Window.new(opts)
     w.open = false
     w.running = false
     w.sections = {}
-    w.drop = {}   -- every Drawing object (park + cleanup)
+    w.drop = {} 
 
     _G[RUN_KEY] = w
     return w
@@ -193,7 +169,6 @@ function UI.Window:update()
         vw, vh = cam.ViewportSize.X, cam.ViewportSize.Y
     end
 
-    -- layout: label zones + widget rows
     local rows = {}
     local y = 0
     for _, sec in ipairs(self.sections) do
@@ -207,7 +182,6 @@ function UI.Window:update()
     end
     local boxH = y + END_PAD
 
-    -- closed: park everything off-screen (never Visible=false)
     if not self.open then
         for _, o in ipairs(self.drop) do
             wPark(o)
@@ -227,7 +201,6 @@ function UI.Window:update()
     self.box.Size = Vector2.new(BOX_W, boxH)
     wShow(self, self.box)
 
-    -- mouse
     local mx, my = 0, 0
     local lplr = game.Players.LocalPlayer
     if lplr then
@@ -236,7 +209,6 @@ function UI.Window:update()
     end
     local m1 = safe(ismouse1pressed) or false
 
-    -- keybind capture: if any bind is listening, scan for a key
     local captureVk = nil
     for _, sec in ipairs(self.sections) do
         for _, wid in ipairs(sec.widgets) do
@@ -275,7 +247,6 @@ function UI.Window:update()
             local wid = r.wid
             local ry = by + r.y
 
-            -- persistent highlight background (toggled on click)
             if wid.highlight then
                 local b = widBg(wid)
                 b.Position = Vector2.new(bx + 12, ry)
@@ -316,7 +287,6 @@ function UI.Window:update()
         end
     end
 
-    -- click handling (press edge)
     local press = m1 and not self._m1Was
     self._m1Was = m1
 
@@ -350,7 +320,6 @@ function UI.Window:update()
         end
     end
 
-    -- apply a newly captured bind
     if captureVk then
         for _, sec in ipairs(self.sections) do
             for _, wid in ipairs(sec.widgets) do
@@ -413,12 +382,4 @@ function UI.Window:Destroy()
     end
 end
 
--- ---------------------------------------------------------------- export
-
--- expose the library so a loader script can build menus:
---   loadstring(game:HttpGet("https://raw/github/.../ui.lua"))()
---   local Win = UI.Window.new({})
---   local Main = Win:Section("Main")
---   Main:Button("test", function() print("[ui] clicked") end)
---   Win:Start()
 _G.UI = UI
