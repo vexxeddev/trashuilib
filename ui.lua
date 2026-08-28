@@ -73,6 +73,47 @@ local UI = {}
 UI.Window = {}
 UI.Window.__index = UI.Window
 
+-- multi-window registry: each fresh ui.lua load tears down every window from
+-- a previous run, then registers windows as they are created in this run.
+local cur = _G[RUN_KEY]
+if cur then
+    local removed = 0
+    if type(cur) == "table" and cur.sections then
+        pcall(function() cur:Destroy() end)
+        removed = 1
+    elseif type(cur) == "table" then
+        for _, w in ipairs(cur) do
+            pcall(function() w:Destroy() end)
+            removed = removed + 1
+        end
+    end
+    if removed > 0 then print("[ui] removed previous instance") end
+end
+local WINDOWS = {}
+_G[RUN_KEY] = WINDOWS
+
+local function arrangeWindow(w)
+    local vw, vh = 1920, 1080
+    local cam = game.Workspace and game.Workspace.CurrentCamera
+    if cam and cam.ViewportSize then
+        vw, vh = cam.ViewportSize.X, cam.ViewportSize.Y
+    end
+    local estH = END_PAD
+    for _, sec in ipairs(w.sections) do
+        estH = estH + SEC_H + SEC_GAP + #sec.widgets * ROW_STEP
+    end
+    local idx = 1
+    for i, o in ipairs(WINDOWS) do
+        if o == w then idx = i break end
+    end
+    local n = idx - 1
+    local gap = 16
+    local totalW = #WINDOWS * BOX_W + (math.max(0, #WINDOWS - 1) * gap)
+    local x = (vw - totalW) / 2 + n * (BOX_W + gap)
+    local y = (vh - estH) / 2
+    return Vector2.new(math.max(4, x), math.max(4, y))
+end
+
 -- note: this build renders Text only while Visible=true is written (proven:
 -- probe text + earlier menu both re-wrote it every frame). So always write
 -- Visible=true, never false; hiding is done by parking off-screen.
@@ -87,22 +128,16 @@ local function wPark(o)
 end
 
 function UI.Window.new(opts)
-    local prev = _G[RUN_KEY]
-    if prev then
-        prev:Destroy()
-        print("[ui] removed previous instance")
-    end
-
     opts = opts or {}
     local w = setmetatable({}, UI.Window)
-    w.pos = opts.Position or Vector2.new(40, 40)
+    w.pos = opts.Position
     w.toggleKey = opts.ToggleKey or VK_RSHIFT
     w.open = false
     w.running = false
     w.sections = {}
     w.drop = {}   -- every Drawing object (park + cleanup)
 
-    _G[RUN_KEY] = w
+    table.insert(WINDOWS, w)
     return w
 end
 
@@ -384,6 +419,7 @@ end
 
 function UI.Window:Start()
     if self.running then return end
+    if not self.pos then self.pos = arrangeWindow(self) end
     self.running = true
     print("[ui] menu loaded")
     spawn(function()
@@ -408,8 +444,8 @@ end
 function UI.Window:Destroy()
     self.running = false
     self:DestroyObjects()
-    if _G[RUN_KEY] == self then
-        _G[RUN_KEY] = nil
+    for i, w in ipairs(WINDOWS) do
+        if w == self then table.remove(WINDOWS, i) break end
     end
 end
 
