@@ -35,7 +35,7 @@ local FONT_BOLD = Drawing.Fonts.SystemBold
 
 local BOX_W = 248
 local SEC_H = 38  -- section label zone (divider sits at its bottom)
-local ROW_H = 30
+local ROW_H = 36
 local ROW_GAP = 4
 local SEC_GAP = 8
 local END_PAD = 8
@@ -256,7 +256,7 @@ function UI.Window:update()
         self.box = Drawing.new("Square")
         self.box.Filled = true
         self.box.Color = BOX_BG
-        self.box.Corner = 8
+        self.box.Corner = 4
         table.insert(self.drop, self.box)
     end
     self.box.Position = Vector2.new(bx, by)
@@ -314,8 +314,8 @@ function UI.Window:update()
             -- persistent highlight background (toggled on click)
             if wid.highlight then
                 local b = widBg(wid)
-                b.Position = Vector2.new(bx + 12, ry)
-                b.Size = Vector2.new(BOX_W - 24, ROW_H)
+                b.Position = Vector2.new(bx, ry)
+                b.Size = Vector2.new(BOX_W, ROW_H)
                 wShow(self, b)
             elseif wid.bg then
                 wPark(wid.bg)
@@ -361,7 +361,7 @@ function UI.Window:update()
         for _, r in ipairs(rows) do
             if r.type == "widget" then
                 local wid = r.wid
-                if inRect(mx, my, bx + 12, by + r.y, BOX_W - 24, ROW_H) then
+                if inRect(mx, my, bx, by + r.y, BOX_W, ROW_H) then
                     clicked = true
                     wid.highlight = not wid.highlight
                     if wid.type == "button" then
