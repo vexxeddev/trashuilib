@@ -583,7 +583,7 @@ UI.ItemHeld.__index = UI.ItemHeld
 function UI.ItemHeld.new(opts)
     opts = opts or {}
     local self = setmetatable({}, UI.ItemHeld)
-    self.offset = opts.Offset or Vector3.new(0, 4.0, 0)
+    self.offset = opts.Offset or Vector3.new(0, -1.8, 0)
     self.label = opts.Label or ""
     self.running = false
     self.drawn = {}
@@ -614,13 +614,17 @@ function UI.ItemHeld:draw()
                 local ok, v = pcall(function() return hand.Value end)
                 if ok and v then
                     local nm = v.Name
-                    if type(nm) == "string" and #nm > 0 then item = nm end
+                    if type(nm) == "string" and #nm > 0 and nm ~= "Unreadable_name" then
+                        item = nm
+                    end
                 end
             end
         end
 
         if head and item then
-            local pos, on = WorldToScreen(head.Position + self.offset)
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local base = root or head
+            local pos, on = WorldToScreen(base.Position + self.offset)
             if on then
                 if not slot.text then
                     slot.text = Drawing.new("Text")
