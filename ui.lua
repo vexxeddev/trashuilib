@@ -675,6 +675,53 @@ function UI.ItemHeld:Stop()
     self.running = false
 end
 
+-- --------------------------------------------------------------- Autoclicker
+
+UI.Autoclicker = {}
+UI.Autoclicker.__index = UI.Autoclicker
+
+function UI.Autoclicker.new(opts)
+    opts = opts or {}
+    local self = setmetatable({}, UI.Autoclicker)
+    self.cps = opts.Cps or 100
+    self.button = opts.Button or "left" -- "left" | "right" | "both"
+    self.running = false
+    return self
+end
+
+function UI.Autoclicker:Start()
+    if self.running then return end
+    self.running = true
+    print("[autoclicker] started at", self.cps, "cps", "(" .. self.button .. ")")
+    spawn(function()
+        while self.running do
+            local n = math.max(1, math.floor(self.cps * 0.05))
+            if self.button == "left" then
+                for _ = 1, n do
+                    pcall(mouse1click)
+                end
+            elseif self.button == "right" then
+                for _ = 1, n do
+                    pcall(mouse2click)
+                end
+            else
+                for _ = 1, n do
+                    pcall(mouse1click)
+                    pcall(mouse2click)
+                end
+            end
+            wait(0.05)
+        end
+        print("[autoclicker] stopped")
+    end)
+end
+
+function UI.Autoclicker:Stop()
+    self.running = false
+    pcall(mouse1release)
+    pcall(mouse2release)
+end
+
 -- --------------------------------------------------------------- HUD / show enabled
 
 UI.HUD = {}
