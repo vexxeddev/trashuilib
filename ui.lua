@@ -471,15 +471,21 @@ UI.KitView.NAMES = {
     reaper = "Reaper",
 }
 
+local function humanize(id)
+    if not id or id == "" then return "?" end
+    local parts = {}
+    for w in tostring(id):gmatch("[^_]+") do
+        table.insert(parts, w:sub(1, 1):upper() .. w:sub(2))
+    end
+    if #parts == 0 then return tostring(id) end
+    return table.concat(parts, " ")
+end
+
 local function prettyKit(kit)
     if not kit or kit == "" then return "?" end
     local known = UI.KitView.NAMES
     if known[kit] then return known[kit] end
-    local parts = {}
-    for w in tostring(kit):gmatch("[^_]+") do
-        table.insert(parts, w:sub(1, 1):upper() .. w:sub(2))
-    end
-    return table.concat(parts, " ")
+    return humanize(kit)
 end
 
 function UI.KitView.new(opts)
@@ -564,6 +570,97 @@ function UI.KitView:Start()
 end
 
 function UI.KitView:Stop()
+    self.running = false
+end
+
+-- ----------------------------------------------------------- item held esp
+
+UI.ItemHeld = {}
+UI.ItemHeld.__index = UI.ItemHeld
+
+function UI.ItemHeld.new(opts)
+    opts = opts or {}
+    local self = setmetatable({}, UI.ItemHeld)
+    self.offset = opts.Offset or Vector3.new(0, 4.0, 0)
+    self.label = opts.Label or ""
+    self.running = false
+    self.drawn = {}
+    return self
+end
+
+function UI.ItemHeld:draw()
+    local seen = {}
+    local players = game.Players and game.Players:GetPlayers()
+    if not players then return end
+
+    for _, p in ipairs(players) do
+        seen[p] = true
+        local slot = self.drawn[p]
+        if not slot then
+            slot = {}
+            self.drawn[p] = slot
+        end
+
+        local char = p.Character
+        local head = char and char:FindFirstChild("Head")
+        local item = nil
+        if char then
+            local hand = char:FindFirstChild("HandInvItem")
+            if hand then
+                local ok, v = pcall(function() return hand.Value end)
+                if ok and v then item = v.Name end
+            end
+        end
+
+        if head and item then
+            local pos, on = WorldToScreen(head.Position + self.offset)
+            if on then
+                if not slot.text then
+                    slot.text = Drawing.new("Text")
+                    slot.text.Font = FONT_BOLD
+                    slot.text.Center = true
+                    slot.text.Color = Color3.new(1, 1, 1)
+                    slot.text.Outline = false
+                end
+                slot.text.Text = (self.label ~= "" and (self.label .. " ") or "") .. humanize(item)
+                slot.text.Position = pos
+                pcall(function() slot.text.Visible = true end)
+            else
+                if slot.text then pcall(function() slot.text.Position = OFFSCREEN end) end
+            end
+        else
+            if slot.text then pcall(function() slot.text.Position = OFFSCREEN end) end
+        end
+    end
+
+    for p, slot in pairs(self.drawn) do
+        if not seen[p] then
+            if slot.text then pcall(function() slot.text.Position = OFFSCREEN end) end
+        end
+    end
+end
+
+function UI.ItemHeld:Start()
+    if self.running then return end
+    self.running = true
+    print("[itemheld] started")
+    spawn(function()
+        while self.running do
+            local ok, err = pcall(self.draw, self)
+            if not ok then
+                print("[itemheld] error:", err)
+            end
+            wait(0.05)
+        end
+        for p, slot in pairs(self.drawn) do
+            if slot.text then pcall(function() slot.text:Remove() end) end
+        end
+        self.drawn = {}
+        print("[itemheld] stopped")
+    end)
+end
+
+function UI.ItemHeld:Stop()
     self.running = false
 end
 
