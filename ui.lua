@@ -510,7 +510,9 @@ function UI.KitView:draw()
             self.drawn[p] = slot
         end
 
+        local me = game.Players and game.Players.LocalPlayer
         local char = p.Character
+        if p == me then char = nil end
         local head = char and char:FindFirstChild("Head")
         local kit = nil
         if head then
@@ -601,14 +603,19 @@ function UI.ItemHeld:draw()
             self.drawn[p] = slot
         end
 
+        local me = game.Players and game.Players.LocalPlayer
         local char = p.Character
+        if p == me then char = nil end
         local head = char and char:FindFirstChild("Head")
         local item = nil
         if char then
             local hand = char:FindFirstChild("HandInvItem")
             if hand then
                 local ok, v = pcall(function() return hand.Value end)
-                if ok and v then item = v.Name end
+                if ok and v then
+                    local nm = v.Name
+                    if type(nm) == "string" and #nm > 0 then item = nm end
+                end
             end
         end
 
