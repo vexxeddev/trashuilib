@@ -33,7 +33,7 @@ local ON_CL     = Color3.new(0, 1, 0)
 
 local FONT_BOLD = Drawing.Fonts.SystemBold
 
-local BOX_W = 212
+local BOX_W = 248
 local SEC_H = 38  -- section label zone (divider sits at its bottom)
 local ROW_H = 30
 local ROW_GAP = 4
@@ -256,6 +256,7 @@ function UI.Window:update()
         self.box = Drawing.new("Square")
         self.box.Filled = true
         self.box.Color = BOX_BG
+        self.box.Corner = 8
         table.insert(self.drop, self.box)
     end
     self.box.Position = Vector2.new(bx, by)
@@ -406,9 +407,11 @@ function UI.Window:update()
                 d.dragging = true
             end
             if d.dragging then
+                local hx = clamp(d.ox + dx, 4, vw - BOX_W - 4)
+                local hy = clamp(d.oy + dy, 4, vh - boxH - 4)
                 self.pos = Vector2.new(
-                    clamp(d.ox + dx, 4, vw - BOX_W - 4),
-                    clamp(d.oy + dy, 4, vh - boxH - 4)
+                    self.pos.X + (hx - self.pos.X) * 0.22,
+                    self.pos.Y + (hy - self.pos.Y) * 0.22
                 )
             end
         else
@@ -920,3 +923,36 @@ end
 --   Main:Button("test", function() print("[ui] clicked") end)
 --   Win:Start()
 _G.UI = UI
+
+-- ---------------------------------------------------------------- auto demo
+
+-- runs the demo menu automatically so ui.lua can be executed on its own.
+local okDemo, errDemo = pcall(function()
+    local kv = UI.KitView.new({})
+    local ih = UI.ItemHeld.new({})
+    local ac = UI.Autoclicker.new({ Cps = 100 })
+
+    local kvOn, ihOn, acOn = false, false, false
+
+    local Visuals = UI.Window.new({})
+    local Vs = Visuals:Section("Visuals")
+    Vs:Button("KitView", function()
+        kvOn = not kvOn
+        if kvOn then kv:Start() else kv:Stop() end
+    end)
+    Vs:Button("Item Held", function()
+        ihOn = not ihOn
+        if ihOn then ih:Start() else ih:Stop() end
+    end)
+
+    local Combat = UI.Window.new({})
+    local Cs = Combat:Section("Combat")
+    Cs:Button("Autoclicker", function()
+        acOn = not acOn
+        if acOn then ac:Start() else ac:Stop() end
+    end)
+
+    Visuals:Start()
+    Combat:Start()
+end)
+if not okDemo then print("[ui] demo error:", errDemo) end
