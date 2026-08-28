@@ -25,18 +25,21 @@ local RUN_KEY = "__UI_MENU"
 local OFFSCREEN = Vector2.new(-30000, -30000)
 
 local BOX_BG    = Color3.fromRGB(28, 28, 28)
-local PRESS_BG  = Color3.fromRGB(94, 94, 94)
-local LINE      = Color3.new(1, 1, 1)
-local LABEL_CL  = Color3.fromRGB(219, 219, 219)
-local ROW_CL    = Color3.fromRGB(156, 156, 156)
+local PRESS_BG  = Color3.fromRGB(64, 100, 120)
+local ROW_BG    = Color3.fromRGB(38, 38, 38)
+local LINE      = Color3.fromRGB(92, 92, 92)
+local LABEL_CL  = Color3.fromRGB(213, 223, 230)
+local ROW_CL    = Color3.fromRGB(213, 223, 230)
+local BTN_CL    = Color3.fromRGB(133, 133, 133)
+local SEL_CL    = Color3.fromRGB(33, 33, 33)
 local ON_CL     = Color3.new(0, 1, 0)
 
 local FONT_BOLD = Drawing.Fonts.SystemBold
 
 local BOX_W = 248
 local SEC_H = 38  -- section label zone (divider sits at its bottom)
-local ROW_H = 36
-local ROW_GAP = 4
+local ROW_H = 40
+local ROW_GAP = 0
 local SEC_GAP = 8
 local END_PAD = 8
 
@@ -176,14 +179,16 @@ local function widText(wid, idx, color)
     return t
 end
 
-local function widBg(wid)
+local function widBg(wid, color)
     local b = wid.bg
     if not b then
         b = Drawing.new("Square")
         b.Filled = true
-        b.Color = PRESS_BG
+        b.Color = color or PRESS_BG
         wid.bg = b
         table.insert(wid._win.drop, b)
+    else
+        b.Color = color or PRESS_BG
     end
     return b
 end
@@ -304,14 +309,13 @@ function UI.Window:update()
                 sec._divider.Color = LINE
                 table.insert(self.drop, sec._divider)
             end
-            sec._divider.Position = Vector2.new(bx + 12, by + r.y + SEC_H - 4)
-            sec._divider.Size = Vector2.new(BOX_W - 24, 1)
+            sec._divider.Position = Vector2.new(bx, by + r.y + SEC_H - 4)
+            sec._divider.Size = Vector2.new(BOX_W, 1)
             wShow(self, sec._divider)
         else
             local wid = r.wid
             local ry = by + r.y
 
-            -- persistent highlight background (toggled on click)
             if wid.highlight then
                 local b = widBg(wid)
                 b.Position = Vector2.new(bx, ry)
@@ -323,6 +327,7 @@ function UI.Window:update()
 
             if wid.type == "button" then
                 local text = widText(wid, 1, ROW_CL)
+                text.Color = wid.highlight and SEL_CL or BTN_CL
                 text.Text = wid.labelText
                 text.Position = Vector2.new(bx + 12, ry + (ROW_H - 16) * 0.5)
                 wShow(self, text)
@@ -331,9 +336,10 @@ function UI.Window:update()
                 local state = widText(wid, 2, ROW_CL)
                 state.Center = true
                 text.Text = wid.labelText
+                text.Color = wid.highlight and SEL_CL or ROW_CL
                 text.Position = Vector2.new(bx + 12, ry + (ROW_H - 16) * 0.5)
                 state.Text = wid.value and "ON" or "OFF"
-                state.Color = wid.value and ON_CL or ROW_CL
+                state.Color = wid.highlight and SEL_CL or (wid.value and ON_CL or ROW_CL)
                 state.Position = Vector2.new(bx + BOX_W - 30, ry + (ROW_H - 16) * 0.5)
                 wShow(self, text)
                 wShow(self, state)
@@ -342,9 +348,10 @@ function UI.Window:update()
                 local key = widText(wid, 2, ROW_CL)
                 key.Center = true
                 text.Text = wid.labelText
+                text.Color = wid.highlight and SEL_CL or ROW_CL
                 text.Position = Vector2.new(bx + 12, ry + (ROW_H - 16) * 0.5)
                 key.Text = wid.listening and "..." or (KEY_NAME[wid.vk] and KEY_NAME[wid.vk] or "NONE")
-                key.Color = wid.listening and LABEL_CL or ROW_CL
+                key.Color = wid.highlight and SEL_CL or (wid.listening and LABEL_CL or ROW_CL)
                 key.Position = Vector2.new(bx + BOX_W - 30, ry + (ROW_H - 16) * 0.5)
                 wShow(self, text)
                 wShow(self, key)
