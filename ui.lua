@@ -482,34 +482,13 @@ local function prettyKit(kit)
     return table.concat(parts, " ")
 end
 
-local function iconUrl(assetId)
-    return string.format("https://www.roblox.com/asset-thumbnail/image?assetId=%d&width=64&height=64", assetId)
-end
-
 function UI.KitView.new(opts)
     opts = opts or {}
     local self = setmetatable({}, UI.KitView)
     self.offset = opts.Offset or Vector3.new(0, 3.4, 0)
-    self.icons = opts.Icons or {} -- kit id -> roblox asset id of its icon
     self.running = false
-    self.drawn = {} -- player -> { text, img }
-    self.cache = {} -- asset id -> "loading" | false | image bytes
+    self.drawn = {}  -- player -> text drawing
     return self
-end
-
-local function startIconLoad(self, assetId)
-    if self.cache[assetId] ~= nil then return end
-    self.cache[assetId] = "loading"
-    spawn(function()
-        local ok, body = pcall(function()
-            return game:HttpGet(iconUrl(assetId), true)
-        end)
-        if ok and type(body) == "string" and #body > 0 then
-            self.cache[assetId] = body
-        else
-            self.cache[assetId] = false
-        end
-    end)
 end
 
 function UI.KitView:draw()
@@ -548,34 +527,11 @@ function UI.KitView:draw()
                 slot.text.Text = label
                 slot.text.Position = pos
                 pcall(function() slot.text.Visible = true end)
-
-                local iconId = self.icons[kit]
-                if iconId then
-                    startIconLoad(self, iconId)
-                    local bytes = self.cache[iconId]
-                    if type(bytes) == "string" then
-                        if not slot.img then
-                            slot.img = Drawing.new("Image")
-                            slot.img.Size = Vector2.new(28, 28)
-                        end
-                        pcall(function() slot.img.Data = bytes end)
-                        pcall(function() slot.img.Position = Vector2.new(pos.X - 30, pos.Y - 14) end)
-                        pcall(function() slot.img.Visible = true end)
-                    elseif slot.img then
-                        pcall(function() slot.img.Position = OFFSCREEN end)
-                    end
-                elseif slot.img then
-                    pcall(function() slot.img.Position = OFFSCREEN end)
-                end
             else
-                -- offscreen (behind camera etc.): park
                 if slot.text then pcall(function() slot.text.Position = OFFSCREEN end) end
-                if slot.img then pcall(function() slot.img.Position = OFFSCREEN end) end
             end
         else
-            -- no character / no kit: park
             if slot.text then pcall(function() slot.text.Position = OFFSCREEN end) end
-            if slot.img then pcall(function() slot.img.Position = OFFSCREEN end) end
         end
     end
 
@@ -583,7 +539,6 @@ function UI.KitView:draw()
     for p, slot in pairs(self.drawn) do
         if not seen[p] then
             if slot.text then pcall(function() slot.text.Position = OFFSCREEN end) end
-            if slot.img then pcall(function() slot.img.Position = OFFSCREEN end) end
         end
     end
 end
@@ -602,7 +557,6 @@ function UI.KitView:Start()
         end
         for p, slot in pairs(self.drawn) do
             if slot.text then pcall(function() slot.text:Remove() end) end
-            if slot.img then pcall(function() slot.img:Remove() end) end
         end
         self.drawn = {}
         print("[kitview] stopped")
@@ -610,6 +564,159 @@ function UI.KitView:Start()
 end
 
 function UI.KitView:Stop()
+    self.running = false
+end
+
+-- --------------------------------------------------------------- HUD / show enabled
+
+UI.HUD = {}
+UI.HUD.__index = UI.HUD
+
+function UI.HUD.new(opts)
+    opts = opts or {}
+    local self = setmetatable({}, UI.HUD)
+    self.title = opts.Title
+    self.imageUrl = opts.ImageUrl
+    self.rightPad = opts.RightPad or 12
+    self.rowGap = opts.RowGap or 24
+    self.imageSize = opts.ImageSize or Vector2.new(160, 64)
+    self.running = false
+    self.visible = opts.Enabled ~= false
+    self.names = {}   -- ordered array of row names
+    self.states = {}  -- name -> bool (enabled)
+    self.rows = {}    -- name -> text drawing
+    self.imageObj = nil
+    self.titleObj = nil
+    self.imageState = "none" -- "none" | "loading" | "ok" | "fail"
+    self.imageData = nil
+    return self
+end
+
+local function viewport()
+    local ok, cam = pcall(function() return workspace.CurrentCamera end)
+    if ok and cam then
+        local ok2, vs = pcall(function() return cam.ViewportSize end)
+        if ok2 and vs then return vs end
+    end
+    return Vector2.new(1920, 1080)
+end
+
+function UI.HUD:Set(name, on)
+    if not self.states[name] and on then
+        table.insert(self.names, name)
+    end
+    self.states[name] = not not on
+end
+
+function UI.HUD:SetEnabled(b)
+    self.visible = not not b
+end
+
+function UI.HUD:render()
+    local vs = viewport()
+    local anchorX = vs.X - self.rightPad
+
+    if not self.visible then
+        if self.imageObj then pcall(function() self.imageObj.Position = OFFSCREEN end) end
+        if self.titleObj then pcall(function() self.titleObj.Position = OFFSCREEN end) end
+        for _, row in pairs(self.rows) do
+            pcall(function() row.Position = OFFSCREEN end)
+        end
+        return
+    end
+
+    local y = math.floor(vs.Y * 0.5) -- middle-right
+
+    if self.imageUrl then
+        if self.imageState == "none" then
+            self.imageState = "loading"
+            spawn(function()
+                local ok, b = pcall(function() return game:HttpGet(self.imageUrl, true) end)
+                if ok and type(b) == "string" and #b > 0 then
+                    self.imageState = "ok"
+                    self.imageData = b
+                else
+                    self.imageState = "fail"
+                end
+            end)
+        end
+        if self.imageState == "ok" and self.imageData then
+            if not self.imageObj then
+                self.imageObj = Drawing.new("Image")
+                self.imageObj.Size = self.imageSize
+            end
+            pcall(function() self.imageObj.Data = self.imageData end)
+            pcall(function() self.imageObj.Position = Vector2.new(anchorX - self.imageSize.X / 2, y) end)
+            pcall(function() self.imageObj.Visible = true end)
+            y = y + self.imageSize.Y + 8
+        elseif self.title then
+            if not self.titleObj then
+                self.titleObj = Drawing.new("Text")
+                self.titleObj.Font = FONT_BOLD
+                self.titleObj.Center = true
+                self.titleObj.Color = Color3.fromRGB(219, 219, 219)
+                self.titleObj.Outline = false
+            end
+            self.titleObj.Text = self.title
+            self.titleObj.Position = Vector2.new(anchorX, y)
+            pcall(function() self.titleObj.Visible = true end)
+            y = y + self.rowGap
+        end
+    elseif self.title then
+        if not self.titleObj then
+            self.titleObj = Drawing.new("Text")
+            self.titleObj.Font = FONT_BOLD
+            self.titleObj.Center = true
+            self.titleObj.Color = Color3.fromRGB(219, 219, 219)
+            self.titleObj.Outline = false
+        end
+        self.titleObj.Text = self.title
+        self.titleObj.Position = Vector2.new(anchorX, y)
+        pcall(function() self.titleObj.Visible = true end)
+        y = y + self.rowGap
+    end
+
+    for _, name in ipairs(self.names) do
+        local row = self.rows[name]
+        if not row then
+            row = Drawing.new("Text")
+            row.Font = FONT_BOLD
+            row.Center = true
+            row.Color = Color3.fromRGB(0, 255, 0)
+            row.Outline = false
+            self.rows[name] = row
+        end
+        if self.states[name] then
+            row.Text = name
+            row.Position = Vector2.new(anchorX, y)
+            pcall(function() row.Visible = true end)
+            y = y + self.rowGap
+        else
+            pcall(function() row.Position = OFFSCREEN end)
+        end
+    end
+end
+
+function UI.HUD:Start()
+    if self.running then return end
+    self.running = true
+    spawn(function()
+        while self.running do
+            local ok, err = pcall(self.render, self)
+            if not ok then
+                print("[hud] error:", err)
+            end
+            wait(0.06)
+        end
+        if self.imageObj then pcall(function() self.imageObj:Remove() end) end
+        if self.titleObj then pcall(function() self.titleObj:Remove() end) end
+        for _, row in pairs(self.rows) do
+            pcall(function() row:Remove() end)
+        end
+    end)
+end
+
+function UI.HUD:Stop()
     self.running = false
 end
 
