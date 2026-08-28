@@ -1,3 +1,24 @@
+-- ui.lua - vape-style Drawing UI library for Matcha
+-- Look matches the confirmed-good single-box design:
+--   box fill (28,28,28) / section labels (219,219,219) / white divider
+--   widget rows (156,156,156), clickable + press highlight, draggable,
+--   RightShift toggle.
+--
+-- CRITICAL quirk (learned the hard way on this build):
+--   * Never write Visible=false on a Drawing object - it can permanently
+--     kill it (it stops rendering forever). To hide, objects are parked
+--     off-screen instead. Visible=true is written exactly once per object.
+--   * Never set Transparency on filled squares.
+--   * Avoid pure red.
+--
+-- Usage:
+--   local Win = UI.Window.new({})
+--   local Main = Win:Section("Main")
+--   Main:Button("test", function() print("[ui] clicked") end)
+--   Main:Toggle("AutoClicker", true, function(v) print("ac =", v) end)
+--   Main:Keybind("Mode", function(vk) print("bound", vk) end)
+--   Win:Start()
+
 local VK_RSHIFT = 0xA1
 local DRAG_THRESHOLD = 3
 local RUN_KEY = "__UI_MENU"
@@ -13,7 +34,7 @@ local ON_CL     = Color3.new(0, 1, 0)
 local FONT_BOLD = Drawing.Fonts.SystemBold
 
 local BOX_W = 212
-local SEC_H = 38
+local SEC_H = 38  -- section label zone (divider sits at its bottom)
 local ROW_H = 30
 local ROW_GAP = 4
 local SEC_GAP = 8
@@ -35,12 +56,12 @@ local function safe(fn, ...)
     return nil, nil
 end
 
-
+-- keys that a keybind can capture
 local BIND_KEYS = {}
-for i = 0x30, 0x39 do table.insert(BIND_KEYS, i) end 
-for i = 0x41, 0x5A do table.insert(BIND_KEYS, i) end 
-for i = 0x70, 0x7B do table.insert(BIND_KEYS, i) end 
-BIND_KEYS[#BIND_KEYS + 1] = 0x20
+for i = 0x30, 0x39 do table.insert(BIND_KEYS, i) end              -- 0-9
+for i = 0x41, 0x5A do table.insert(BIND_KEYS, i) end              -- A-Z
+for i = 0x70, 0x7B do table.insert(BIND_KEYS, i) end              -- F1-F12
+BIND_KEYS[#BIND_KEYS + 1] = 0x20 -- space
 
 local KEY_NAME = {}
 for k = 0x41, 0x5A do KEY_NAME[k] = string.char(k) end
@@ -52,6 +73,9 @@ local UI = {}
 UI.Window = {}
 UI.Window.__index = UI.Window
 
+-- note: this build renders Text only while Visible=true is written (proven:
+-- probe text + earlier menu both re-wrote it every frame). So always write
+-- Visible=true, never false; hiding is done by parking off-screen.
 local function wShow(w, o)
     if not o then return end
     pcall(function() o.Visible = true end)
@@ -76,7 +100,7 @@ function UI.Window.new(opts)
     w.open = false
     w.running = false
     w.sections = {}
-    w.drop = {} 
+    w.drop = {}   -- every Drawing object (park + cleanup)
 
     _G[RUN_KEY] = w
     return w
@@ -169,6 +193,7 @@ function UI.Window:update()
         vw, vh = cam.ViewportSize.X, cam.ViewportSize.Y
     end
 
+    -- layout: label zones + widget rows
     local rows = {}
     local y = 0
     for _, sec in ipairs(self.sections) do
@@ -182,6 +207,7 @@ function UI.Window:update()
     end
     local boxH = y + END_PAD
 
+    -- closed: park everything off-screen (never Visible=false)
     if not self.open then
         for _, o in ipairs(self.drop) do
             wPark(o)
@@ -201,6 +227,7 @@ function UI.Window:update()
     self.box.Size = Vector2.new(BOX_W, boxH)
     wShow(self, self.box)
 
+    -- mouse
     local mx, my = 0, 0
     local lplr = game.Players.LocalPlayer
     if lplr then
@@ -209,6 +236,7 @@ function UI.Window:update()
     end
     local m1 = safe(ismouse1pressed) or false
 
+    -- keybind capture: if any bind is listening, scan for a key
     local captureVk = nil
     for _, sec in ipairs(self.sections) do
         for _, wid in ipairs(sec.widgets) do
@@ -247,6 +275,7 @@ function UI.Window:update()
             local wid = r.wid
             local ry = by + r.y
 
+            -- persistent highlight background (toggled on click)
             if wid.highlight then
                 local b = widBg(wid)
                 b.Position = Vector2.new(bx + 12, ry)
@@ -287,6 +316,7 @@ function UI.Window:update()
         end
     end
 
+    -- click handling (press edge)
     local press = m1 and not self._m1Was
     self._m1Was = m1
 
@@ -320,6 +350,7 @@ function UI.Window:update()
         end
     end
 
+    -- apply a newly captured bind
     if captureVk then
         for _, sec in ipairs(self.sections) do
             for _, wid in ipairs(sec.widgets) do
@@ -382,4 +413,212 @@ function UI.Window:Destroy()
     end
 end
 
+-- ------------------------------------------------------------ kit view ESP
+
+UI.KitView = {}
+UI.KitView.__index = UI.KitView
+
+UI.KitView.NAMES = {
+    sword_shield = "Sword & Shield",
+    archer = "Archer",
+    baker = "Baker",
+    barbarian = "Barbarian",
+    beast = "Beast",
+    builder = "Builder",
+    farmer = "Farmer",
+    cleetus = "Cleetus",
+    pirate = "Pirate Davey",
+    melody = "Melody",
+    infernal_shielder = "Infernal Shielder",
+    fish = "Fish",
+    vulture = "Vulture",
+    mel = "Mel",
+    hannah = "Hannah",
+    ember = "Ember",
+    grim_reaper = "Grim Reaper",
+    eldric = "Eldric",
+    aery = "Aery",
+    crypt = "Crypt",
+    kaliyah = "Kaliyah",
+    kaida = "Kaida",
+    isabel = "Isabel",
+    skoll = "Skoll",
+    terra = "Terra",
+    lian = "Lian",
+    lumen = "Lumen",
+    nyx = "Nyx",
+    pyrose = "Pyro",
+    zarrah = "Zarrah",
+    sheila = "Sheila",
+    sheep_herder = "Sheep Herder",
+    whimm = "Whim",
+    caitlyn = "Caitlyn",
+    adetunde = "Adetunde",
+    agni = "Agni",
+    crocowolf = "Crocoman",
+    evelynn = "Evelynn",
+    freiya = "Freiya",
+    fortunna = "Fortuna",
+    ramil = "Ramil",
+    void_knight = "Void Knight",
+    xu_rot = "Xu'rot",
+    lassy = "Lassy",
+    nazar = "Nazar",
+    spirit_assassin = "Spirit Assassin",
+    falconer = "Falconer",
+    trapper = "Trapper",
+    valkyrie = "Valkyrie",
+    reaper = "Reaper",
+}
+
+local function prettyKit(kit)
+    if not kit or kit == "" then return "?" end
+    local known = UI.KitView.NAMES
+    if known[kit] then return known[kit] end
+    local parts = {}
+    for w in tostring(kit):gmatch("[^_]+") do
+        table.insert(parts, w:sub(1, 1):upper() .. w:sub(2))
+    end
+    return table.concat(parts, " ")
+end
+
+local function iconUrl(assetId)
+    return string.format("https://www.roblox.com/asset-thumbnail/image?assetId=%d&width=64&height=64", assetId)
+end
+
+function UI.KitView.new(opts)
+    opts = opts or {}
+    local self = setmetatable({}, UI.KitView)
+    self.offset = opts.Offset or Vector3.new(0, 3.4, 0)
+    self.icons = opts.Icons or {} -- kit id -> roblox asset id of its icon
+    self.running = false
+    self.drawn = {} -- player -> { text, img }
+    self.cache = {} -- asset id -> "loading" | false | image bytes
+    return self
+end
+
+local function startIconLoad(self, assetId)
+    if self.cache[assetId] ~= nil then return end
+    self.cache[assetId] = "loading"
+    spawn(function()
+        local ok, body = pcall(function()
+            return game:HttpGet(iconUrl(assetId), true)
+        end)
+        if ok and type(body) == "string" and #body > 0 then
+            self.cache[assetId] = body
+        else
+            self.cache[assetId] = false
+        end
+    end)
+end
+
+function UI.KitView:draw()
+    local seen = {}
+    local players = game.Players and game.Players:GetPlayers()
+    if not players then return end
+
+    for _, p in ipairs(players) do
+        seen[p] = true
+        local slot = self.drawn[p]
+        if not slot then
+            slot = {}
+            self.drawn[p] = slot
+        end
+
+        local char = p.Character
+        local head = char and char:FindFirstChild("Head")
+        local kit = nil
+        if head then
+            local ok, v = pcall(function() return p:GetAttribute("PlayingAsKits") end)
+            kit = ok and v or nil
+        end
+
+        local label = kit and prettyKit(kit) or nil
+
+        if head and kit and label then
+            local pos, on = WorldToScreen(head.Position + self.offset)
+            if on then
+                if not slot.text then
+                    slot.text = Drawing.new("Text")
+                    slot.text.Font = FONT_BOLD
+                    slot.text.Center = true
+                    slot.text.Color = Color3.new(1, 1, 1)
+                    slot.text.Outline = false
+                end
+                slot.text.Text = label
+                slot.text.Position = pos
+                pcall(function() slot.text.Visible = true end)
+
+                local iconId = self.icons[kit]
+                if iconId then
+                    startIconLoad(self, iconId)
+                    local bytes = self.cache[iconId]
+                    if type(bytes) == "string" then
+                        if not slot.img then
+                            slot.img = Drawing.new("Image")
+                            slot.img.Size = Vector2.new(28, 28)
+                        end
+                        pcall(function() slot.img.Data = bytes end)
+                        pcall(function() slot.img.Position = Vector2.new(pos.X - 30, pos.Y - 14) end)
+                        pcall(function() slot.img.Visible = true end)
+                    elseif slot.img then
+                        pcall(function() slot.img.Position = OFFSCREEN end)
+                    end
+                elseif slot.img then
+                    pcall(function() slot.img.Position = OFFSCREEN end)
+                end
+            else
+                -- offscreen (behind camera etc.): park
+                if slot.text then pcall(function() slot.text.Position = OFFSCREEN end) end
+                if slot.img then pcall(function() slot.img.Position = OFFSCREEN end) end
+            end
+        else
+            -- no character / no kit: park
+            if slot.text then pcall(function() slot.text.Position = OFFSCREEN end) end
+            if slot.img then pcall(function() slot.img.Position = OFFSCREEN end) end
+        end
+    end
+
+    -- players that left: park their labels
+    for p, slot in pairs(self.drawn) do
+        if not seen[p] then
+            if slot.text then pcall(function() slot.text.Position = OFFSCREEN end) end
+            if slot.img then pcall(function() slot.img.Position = OFFSCREEN end) end
+        end
+    end
+end
+
+function UI.KitView:Start()
+    if self.running then return end
+    self.running = true
+    print("[kitview] started")
+    spawn(function()
+        while self.running do
+            local ok, err = pcall(self.draw, self)
+            if not ok then
+                print("[kitview] error:", err)
+            end
+            wait(0.05)
+        end
+        for p, slot in pairs(self.drawn) do
+            if slot.text then pcall(function() slot.text:Remove() end) end
+            if slot.img then pcall(function() slot.img:Remove() end) end
+        end
+        self.drawn = {}
+        print("[kitview] stopped")
+    end)
+end
+
+function UI.KitView:Stop()
+    self.running = false
+end
+
+-- ---------------------------------------------------------------- export
+
+-- expose the library so a loader script can build menus:
+--   loadstring(game:HttpGet("https://raw/github/.../ui.lua"))()
+--   local Win = UI.Window.new({})
+--   local Main = Win:Section("Main")
+--   Main:Button("test", function() print("[ui] clicked") end)
+--   Win:Start()
 _G.UI = UI
