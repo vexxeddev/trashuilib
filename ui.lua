@@ -528,7 +528,7 @@ function UI.KitView:draw()
                     slot.text.Font = FONT_BOLD
                     slot.text.Center = true
                     slot.text.Color = Color3.new(1, 1, 1)
-                    slot.text.Outline = false
+                    slot.text.Outline = true
                 end
                 slot.text.Text = label
                 slot.text.Position = pos
@@ -619,7 +619,7 @@ function UI.ItemHeld:draw()
                     slot.text = Drawing.new("Text")
                     slot.text.Font = FONT_BOLD
                     slot.text.Center = true
-                    slot.text.Color = Color3.new(1, 1, 1)
+                    slot.text.Color = Color3.fromRGB(99, 168, 156)
                     slot.text.Outline = false
                 end
                 slot.text.Text = (self.label ~= "" and (self.label .. " ") or "") .. humanize(item)
